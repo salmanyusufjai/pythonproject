@@ -9,13 +9,99 @@ class Auditor:
         self.dataset_id = dataset_id
         self.table_id = table_id
 
-    def log(self, audit_data):
+    def create_audit_table(self):
+        schema = [
+            bigquery.SchemaField("ID", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("FileName", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("StartDate", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("StartTime", "INT64", mode="REQUIRED"),
+            bigquery.SchemaField("EndDate", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("EndTime", "INT64", mode="REQUIRED"),
+            bigquery.SchemaField("TimeTake", "INT64", mode="REQUIRED"),
+            bigquery.SchemaField("totalReceivedCompany", "INT64", mode="REQUIRED"),
+            bigquery.SchemaField("matchCRNs", "INT64", mode="REQUIRED"),
+            bigquery.SchemaField("unmatchCRNs", "INT64", mode="REQUIRED"),
+            bigquery.SchemaField("totalSentCompany", "INT64", mode="REQUIRED"),
+            bigquery.SchemaField("Stages", "RECORD", mode="REPEATED", fields=[
+                bigquery.SchemaField("Name", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField("StartTime", "INT64", mode="REQUIRED"),
+                bigquery.SchemaField("EndTime", "INT64", mode="REQUIRED"),
+                bigquery.SchemaField("Error", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("inputFiles", "RECORD", mode="REPEATED", fields=[
+                    bigquery.SchemaField("filename", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("fileFormat", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("bucketLocation", "STRING", mode="REQUIRED")
+                ]),
+                bigquery.SchemaField("outputFiles", "RECORD", mode="REPEATED", fields=[
+                    bigquery.SchemaField("filename", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("fileFormat", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("bucketLocation", "STRING", mode="REQUIRED")
+                ]),
+                bigquery.SchemaField("inputTables", "RECORD", mode="REPEATED", fields=[
+                    bigquery.SchemaField("tablename", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("dataset", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("projectid", "STRING", mode="REQUIRED")
+                ]),
+                bigquery.SchemaField("outputTables", "RECORD", mode="REPEATED", fields=[
+                    bigquery.SchemaField("tablename", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("dataset", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("projectid", "STRING", mode="REQUIRED")
+                ]),
+                bigquery.SchemaField("AdditionalInfo", "RECORD", mode="REPEATED", fields=[
+                    bigquery.SchemaField("Key", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("value", "STRING", mode="REQUIRED")
+                ]),
+                bigquery.SchemaField("dictionaries", "RECORD", mode="REPEATED", fields=[
+                    bigquery.SchemaField("stage", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("rundate", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("companyPV", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("ishistorical", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("Query", "STRING", mode="NULLABLE"),
+                    bigquery.SchemaField("op1", "STRING", mode="NULLABLE"),
+                    bigquery.SchemaField("op2", "STRING", mode="NULLABLE"),
+                    bigquery.SchemaField("op3", "STRING", mode="NULLABLE"),
+                    bigquery.SchemaField("op4", "STRING", mode="NULLABLE"),
+                    bigquery.SchemaField("op5", "STRING", mode="NULLABLE")
+                ]),
+                bigquery.SchemaField("AEJobDetails", "RECORD", mode="REPEATED", fields=[
+                    bigquery.SchemaField("JobName", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("Input", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("output", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("status", "STRING", mode="REQUIRED"),
+                    bigquery.SchemaField("error", "STRING", mode="NULLABLE")
+                ])
+            ])
+        ]
+        
+        table_ref = f"{self.project_id}.{self.dataset_id}.{self.table_id}"
+        table = bigquery.Table(table_ref, schema=schema)
+        
+        try:
+            table = self.client.create_table(table)  # API request
+            print(f"Created audit table {table.table_id}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+    def get_audit_object(self, file_name, start_date):
+        query = f"""
+        SELECT *
+        FROM `{self.project_id}.{self.dataset_id}.{self.table_id}`
+        WHERE FileName = '{file_name}' AND StartDate = '{start_date}'
+        LIMIT 1
+        """
+        query_job = self.client.query(query)
+        results = query_job.result()
+        for row in results:
+            return row.to_dict()
+        return None
+
+    def update_audit_object(self, audit_data):
         table_ref = self.client.dataset(self.dataset_id).table(self.table_id)
         errors = self.client.insert_rows_json(table_ref, [audit_data])
         if errors:
             print(f"Encountered errors while inserting rows: {errors}")
         else:
-            print("Logged audit entry successfully.")
+            print("Updated audit entry successfully.")
 
 # Example usage of the Auditor class
 if __name__ == "__main__":
@@ -24,6 +110,10 @@ if __name__ == "__main__":
     table_id = "your-table-id"
     auditor = Auditor(project_id, dataset_id, table_id)
     
+    # Create the audit table
+    auditor.create_audit_table()
+    
+    # Initial audit data
     audit_data = {
         "ID": "abc.txt_07082024",
         "FileName": "abc.txt",
@@ -81,4 +171,70 @@ if __name__ == "__main__":
                 "JobName": "abx",
                 "Input": "inputQuery",
                 "output": "outputQuery",
-                "status":
+                "status": "success",
+                "error": None
+            }]
+        }]
+    }
+
+    # Log initial audit data
+    auditor.log(audit_data)
+
+    # Retrieve and update audit data
+    file_name = "abc.txt"
+    start_date = "2024-08-07"
+    audit_object = auditor.get_audit_object(file_name, start_date)
+    
+    if audit_object:
+        # Update stage information
+        stage_info = {
+            "Name": "Stage10",
+            "StartTime": int(time.time() * 1000),
+            "EndTime": int(time.time() * 1000),
+            "Error": None,
+            "inputFiles": [{
+                "filename": "abc",
+                "fileFormat": "avro",
+                "bucketLocation": "gs://"
+            }],
+            "outputFiles": [{
+                "filename": "abc",
+                "fileFormat": "avro",
+                "bucketLocation": "gs://"
+            }],
+            "inputTables": [{
+                "tablename": "abc",
+                "dataset": "sandbox",
+                "projectid": "5030"
+            }],
+            "outputTables": [{
+                "tablename": "abc",
+                "dataset": "sandbox",
+                "projectid": "5030"
+            }],
+            "AdditionalInfo": [{
+                "Key": "abc",
+                "value": "xyz"
+            }],
+            "dictionaries": [{
+                "stage": "stage10",
+                "rundate": "21052024",
+                "companyPV": "xyz",
+                "ishistorical": "False",
+                "Query": "",
+                "op1": "",
+                "op2": "",
+                "op3": "",
+                "op4": "",
+                "op5": ""
+            }],
+            "AEJobDetails": [{
+                "JobName": "def",
+                "Input": "inputQuery",
+                "output": "outputQuery",
+                "status": "success",
+                "error": None
+            }]
+        }
+        audit_object["Stages"].append(stage_info)
+        auditor.update_audit_object(audit_object)
