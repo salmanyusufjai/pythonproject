@@ -9,6 +9,13 @@ class Auditor:
         self.dataset_id = dataset_id
         self.table_id = table_id
 
+    def log(self, audit_data):
+        table_ref = self.client.dataset(self.dataset_id).table(self.table_id)
+        errors = self.client.insert_rows_json(table_ref, [audit_data])
+        if errors:
+            print(f"Encountered errors while inserting rows: {errors}")
+        else:
+            print("Logged audit entry successfully.")
     def create_audit_table(self):
         schema = [
             bigquery.SchemaField("ID", "STRING", mode="REQUIRED"),
