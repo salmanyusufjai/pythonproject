@@ -1,0 +1,84 @@
+from google.cloud import bigquery
+from datetime import datetime
+import time
+
+class Auditor:
+    def __init__(self, project_id, dataset_id, table_id):
+        self.client = bigquery.Client(project=project_id)
+        self.project_id = project_id
+        self.dataset_id = dataset_id
+        self.table_id = table_id
+
+    def log(self, audit_data):
+        table_ref = self.client.dataset(self.dataset_id).table(self.table_id)
+        errors = self.client.insert_rows_json(table_ref, [audit_data])
+        if errors:
+            print(f"Encountered errors while inserting rows: {errors}")
+        else:
+            print("Logged audit entry successfully.")
+
+# Example usage of the Auditor class
+if __name__ == "__main__":
+    project_id = "your-project-id"
+    dataset_id = "your-dataset-id"
+    table_id = "your-table-id"
+    auditor = Auditor(project_id, dataset_id, table_id)
+    
+    audit_data = {
+        "ID": "abc.txt_07082024",
+        "FileName": "abc.txt",
+        "StartDate": "2024-08-07",
+        "StartTime": int(time.time() * 1000),
+        "EndDate": "2024-08-07",
+        "EndTime": int(time.time() * 1000),
+        "TimeTake": 60000,
+        "totalReceivedCompany": 1000,
+        "matchCRNs": 950,
+        "unmatchCRNs": 50,
+        "totalSentCompany": 1000,
+        "Stages": [{
+            "Name": "Stage9",
+            "StartTime": int(time.time() * 1000),
+            "EndTime": int(time.time() * 1000),
+            "Error": None,
+            "inputFiles": [{
+                "filename": "abc",
+                "fileFormat": "avro",
+                "bucketLocation": "gs://"
+            }],
+            "outputFiles": [{
+                "filename": "abc",
+                "fileFormat": "avro",
+                "bucketLocation": "gs://"
+            }],
+            "inputTables": [{
+                "tablename": "abc",
+                "dataset": "sandbox",
+                "projectid": "5030"
+            }],
+            "outputTables": [{
+                "tablename": "abc",
+                "dataset": "sandbox",
+                "projectid": "5030"
+            }],
+            "AdditionalInfo": [{
+                "Key": "abc",
+                "value": "xyz"
+            }],
+            "dictionaries": [{
+                "stage": "stage9",
+                "rundate": "20052024",
+                "companyPV": "abc",
+                "ishistorical": "False",
+                "Query": "",
+                "op1": "",
+                "op2": "",
+                "op3": "",
+                "op4": "",
+                "op5": ""
+            }],
+            "AEJobDetails": [{
+                "JobName": "abx",
+                "Input": "inputQuery",
+                "output": "outputQuery",
+                "status":
