@@ -1,0 +1,128 @@
+from google.cloud import bigquery
+from datetime import datetime, timedelta
+
+class RetroProcess:
+    def __init__(self, project_id, dataset_id, table_id):
+        self.client = bigquery.Client(project=project_id)
+        self.project_id = project_id
+        self.dataset_id = dataset_id
+        self.table_id = table_id
+
+    def read_distinct_run_dates(self):
+        query = f"""
+        SELECT DISTINCT RunDate
+        FROM `{self.project_id}.{self.dataset_id}.{self.table_id}`
+        """
+        query_job = self.client.query(query)
+        results = query_job.result()
+        run_dates = [row.RunDate for row in results]
+        return run_dates
+
+    def identify_pv(self, run_dates):
+        pv_dict = [
+            {"partitionDate": "01012023", "pv": "abc"},
+            {"partitionDate": "01022023", "pv": "xyz"},
+            {"partitionDate": "01032023", "pv": "opq"},
+        ]
+
+        result = []
+        for run_date in run_dates:
+            date_obj = datetime.strptime(run_date, "%d%m%Y")
+            day_of_month = date_obj.day
+            month_year = date_obj.strftime("%m%Y")
+            selected_pv = None
+
+            for pv in pv_dict:
+                if pv["partitionDate"][2:] == month_year:
+                    selected_pv = pv["pv"]
+                    if day_of_month > 17:
+                        selected_pv = self.get_next_month_pv(month_year, pv_dict)
+                    break
+            
+            result.append({"rundate": run_date, "pv": selected_pv})
+        
+        return result
+
+    def get_next_month_pv(self, current_month_year, pv_dict):
+        current_date = datetime.strptime(current_month_year, "%m%Y")
+        next_month_date = current_date.replace(day=28) + timedelta(days=4)
+        next_month_year = next_month_date.strftime("%m%Y")
+        
+        for pv in pv_dict:
+            if pv["partitionDate"][2:] == next_month_year:
+                return pv["pv"]
+        
+        return None
+
+    def mark_historical(self, run_date_pv_list):
+        result = []
+        historical_cutoff = datetime.strptime("01042024", "%d%m%Y")
+
+        for item in run_date_pv_list:
+            run_date_obj = datetime.strptime(item["rundate"], "%d%m%Y")
+            is_historical = run_date_obj < historical_cutoff
+            result.append({
+                "rundate": item["rundate"],
+                "pv": item["pv"],
+                "isHistorical": is_historical
+            })
+        
+        return result
+
+
+class QueryBuilder:
+    def __init__(self, project_id, dataset_id, table_id, client=None):
+        self.client = client or bigquery.Client(project=project_id)
+        self.project_id = project_id
+        self.dataset_id = dataset_id
+        self.table_id = table_id
+
+    def create_queries(self, run_date_pv_list):
+        query_list = []
+
+        for item in run_date_pv_list:
+            rundate = item["rundate"]
+            pv = item["pv"]
+            is_historical = item["isHistorical"]
+
+            # Create the select query for companies using an inner query
+            select_query = f"""
+            SELECT *
+            FROM `{self.project_id}.{self.dataset_id}.companies_{pv}`
+            WHERE CRN IN (
+                SELECT CRN
+                FROM `{self.project_id}.{self.dataset_id}.{self.table_id}`
+                WHERE RunDate = '{rundate}'
+            )
+            """
+            query_dict = {
+                "rundate": rundate,
+                "pv": pv,
+                "query": select_query,
+                "isHistorical": is_historical
+            }
+            query_list.append(query_dict)
+
+        return query_list
+
+
+if __name__ == "__main__":
+    project_id = "your-project-id"
+    dataset_id = "your-dataset-id"
+    table_id = "retro_crns_table"
+
+    retro_process = RetroProcess(project_id, dataset_id, table_id)
+    
+    run_dates = retro_process.read_distinct_run_dates()
+    run_date_pv_list = retro_process.identify_pv(run_dates)
+    final_result = retro_process.mark_historical(run_date_pv_list)
+    
+    for item in final_result:
+        print(item)
+
+    # Stage 10: Create queries based on the PV dictionary
+    query_builder = QueryBuilder(project_id, dataset_id, table_id, retro_process.client)
+    queries = query_builder.create_queries(final_result)
+    
+    for query in queries:
+        print(query)
