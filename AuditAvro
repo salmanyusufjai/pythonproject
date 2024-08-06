@@ -1,0 +1,146 @@
+{
+  "type": "record",
+  "name": "AuditLog",
+  "fields": [
+    {"name": "ID", "type": "string"},
+    {"name": "FileName", "type": "string"},
+    {"name": "StartDate", "type": "string"},
+    {"name": "StartTime", "type": "long"},
+    {"name": "EndDate", "type": "string"},
+    {"name": "EndTime", "type": "long"},
+    {"name": "TimeTake", "type": "long"},
+    {"name": "totalReceivedCompany", "type": "int"},
+    {"name": "matchCRNs", "type": "int"},
+    {"name": "unmatchCRNs", "type": "int"},
+    {"name": "totalSentCompany", "type": "int"},
+    {
+      "name": "Stages",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "Stage",
+          "fields": [
+            {"name": "Name", "type": "string"},
+            {"name": "StartTime", "type": "long"},
+            {"name": "EndTime", "type": "long"},
+            {"name": "Error", "type": ["null", "string"], "default": null},
+            {
+              "name": "inputFiles",
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "FileDetail",
+                  "fields": [
+                    {"name": "filename", "type": "string"},
+                    {"name": "fileFormat", "type": "string"},
+                    {"name": "bucketLocation", "type": "string"}
+                  ]
+                }
+              }
+            },
+            {
+              "name": "outputFiles",
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "FileDetail",
+                  "fields": [
+                    {"name": "filename", "type": "string"},
+                    {"name": "fileFormat", "type": "string"},
+                    {"name": "bucketLocation", "type": "string"}
+                  ]
+                }
+              }
+            },
+            {
+              "name": "inputTables",
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "TableDetail",
+                  "fields": [
+                    {"name": "tablename", "type": "string"},
+                    {"name": "dataset", "type": "string"},
+                    {"name": "projectid", "type": "string"}
+                  ]
+                }
+              }
+            },
+            {
+              "name": "outputTables",
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "TableDetail",
+                  "fields": [
+                    {"name": "tablename", "type": "string"},
+                    {"name": "dataset", "type": "string"},
+                    {"name": "projectid", "type": "string"}
+                  ]
+                }
+              }
+            },
+            {
+              "name": "AdditionalInfo",
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "AdditionalInfo",
+                  "fields": [
+                    {"name": "Key", "type": "string"},
+                    {"name": "value", "type": "string"}
+                  ]
+                }
+              }
+            },
+            {
+              "name": "dictionaries",
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "Dictionary",
+                  "fields": [
+                    {"name": "stage", "type": "string"},
+                    {"name": "rundate", "type": "string"},
+                    {"name": "companyPV", "type": "string"},
+                    {"name": "ishistorical", "type": "string"},
+                    {"name": "Query", "type": ["null", "string"], "default": null},
+                    {"name": "op1", "type": ["null", "string"], "default": null},
+                    {"name": "op2", "type": ["null", "string"], "default": null},
+                    {"name": "op3", "type": ["null", "string"], "default": null},
+                    {"name": "op4", "type": ["null", "string"], "default": null},
+                    {"name": "op5", "type": ["null", "string"], "default": null}
+                  ]
+                }
+              }
+            },
+            {
+              "name": "AEJobDetails",
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "Dataflow",
+                  "fields": [
+                    {"name": "JobName", "type": "string"},
+                    {"name": "Input", "type": "string"},
+                    {"name": "output", "type": "string"},
+                    {"name": "status", "type": "string"},
+                    {"name": "error", "type": ["null", "string"], "default": null}
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
