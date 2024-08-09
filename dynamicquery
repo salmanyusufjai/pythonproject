@@ -1,0 +1,51 @@
+def create_dynamic_query(field_mappings, partition_date):
+    subqueries = []
+    
+    for domain, mapping in field_mappings.items():
+        table_alias = domain.lower()
+        
+        # Construct the SELECT fields for the subquery
+        select_fields = []
+        for schema_field, bigquery_field in mapping.get("fields", {}).items():
+            if isinstance(bigquery_field, dict):  # For rawfields and stdfields
+                for subfield, subquery_field in bigquery_field.items():
+                    select_fields.append(f"{subquery_field} AS {schema_field}_{subfield}")
+            else:
+                select_fields.append(f"{bigquery_field} AS {schema_field}")
+        
+        # Join the selected fields into a single string
+        select_clause = ", ".join(select_fields)
+        
+        # Construct the subquery
+        subquery = f"""
+        SELECT 
+            CRN,
+            {table_alias}.*,
+            ARRAY_AGG(STRUCT({select_clause})
+                      ORDER BY rundate DESC LIMIT 1) AS latest
+        FROM `{mapping['table']}`
+        WHERE _PARTITIONTIME = TIMESTAMP('{partition_date}')
+        GROUP BY CRN
+        """
+        subqueries.append(f"{subquery} AS {table_alias}")
+    
+    # Combine all subqueries into the final query
+    final_query = f"""
+    WITH {', '.join(subqueries)}
+    
+    SELECT 
+        pv,
+        A.latest AS A,
+        B.latest AS B,
+        C.latest AS C
+    FROM pv
+    LEFT JOIN A ON pv.CRN = A.CRN
+    LEFT JOIN B ON pv.CRN = B.CRN
+    LEFT JOIN C ON pv.CRN = C.CRN
+    """
+    
+    return final_query
+
+# Generate the query
+query = create_dynamic_query(field_mappings, partition_date)
+print(query)
