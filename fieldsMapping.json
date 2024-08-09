@@ -1,0 +1,56 @@
+# Define the field mappings
+field_mappings = {
+    "pv": {
+        "table": "pv_table",
+        "fields": {
+            "schema_field1": "bigquery_field1",
+            "schema_field2": "bigquery_field2",
+            "rundate": "rundate"  # This will be used for filtering the latest records
+        }
+    },
+    "A": {
+        "table": "a_table",
+        "fields": {
+            "rawfields": {
+                "schema_rawfield1": "bigquery_rawfield1",
+                "schema_rawfield2": "bigquery_rawfield2"
+            },
+            "stdfields": {
+                "schema_stdfield1": "bigquery_stdfield1",
+                "schema_stdfield2": "bigquery_stdfield2"
+            },
+            "rundate": "rundate"
+        }
+    },
+    "B": {
+        "table": "b_table",
+        "fields": {
+            "rawfields": {
+                "schema_rawfield1": "bigquery_rawfield1",
+                "schema_rawfield2": "bigquery_rawfield2"
+            },
+            "stdfields": {
+                "schema_stdfield1": "bigquery_stdfield1",
+                "schema_stdfield2": "bigquery_stdfield2"
+            },
+            "rundate": "rundate"
+        }
+    },
+    "C": {
+        "table": "c_table",
+        "fields": {
+            "rawfields": {
+                "schema_rawfield1": "bigquery_rawfield1",
+                "schema_rawfield2": "bigquery_rawfield2"
+            },
+            "stdfields": {
+                "schema_stdfield1": "bigquery_stdfield1",
+                "schema_stdfield2": "bigquery_stdfield2"
+            },
+            "rundate": "rundate"
+        }
+    }
+}
+
+# Define the partition date
+partition_date = '2024-08-01'
