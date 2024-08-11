@@ -1,0 +1,51 @@
+import subprocess
+import time
+
+class DataflowJob:
+    def __init__(self, job_name, input_query, output_table):
+        self.job_name = job_name
+        self.input_query = input_query
+        self.output_table = output_table
+        self.status = None
+        self.error = None
+
+    def run(self):
+        try:
+            # Command to run the Dataflow job via Python script
+            command = [
+                "python3", "dataflow_pipeline.py",
+                f"--job_name={self.job_name}",
+                f"--input_query={self.input_query}",
+                f"--output_table={self.output_table}",
+                "--runner=DataflowRunner",
+                "--project=your-project-id",
+                "--region=your-region",
+                "--temp_location=gs://your-bucket/temp",
+                "--staging_location=gs://your-bucket/staging"
+            ]
+
+            # Run the command as a subprocess
+            print(f"Running Dataflow job '{self.job_name}' using Python script...")
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+
+            # Check for errors
+            if process.returncode != 0:
+                raise Exception(f"Dataflow job failed: {stderr.decode('utf-8')}")
+            
+            self.status = "success"
+            self.error = None
+            print(stdout.decode('utf-8'))
+        except Exception as e:
+            self.status = "failure"
+            self.error = str(e)
+            print(f"Error: {self.error}")
+
+    def get_job_details(self):
+        return {
+            "JobName": self.job_name,
+            "Input": self.input_query,
+            "Output": self.output_table,
+            "Status": self.status,
+            "Error": self.error
+        }
