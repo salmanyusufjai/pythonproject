@@ -1,15 +1,10 @@
 from typing import Optional, Tuple, Dict
 
 class ScenarioProcessor:
-    def __init__(self, datasource: str, scenario: str, charname: str):
-        # Initialize the attributes
-        self.datasource = datasource
-        self.scenario = scenario
-        self.charname = charname
-
+    def __init__(self):
         # Define dictionaries used in the methods
         self.dic_T: Dict[str, Tuple[int, int]] = {
-            "C": [0, 1], "D": [1, 1], "P": [2, 1], "Q": [4, 1], "E": [6, 1],
+            "C": [0, 1], "D": [1, 1], "P": [2, 1], "Q": [4, 1], "E": [6, 1], 
             "F": [7, 1], "N": [8, 1], "O": [9, 1]
         }
         self.dic_: Dict[str, Tuple[int, int, int]] = {
@@ -17,36 +12,36 @@ class ScenarioProcessor:
             "E": [0, 0, 2], "F": [1, 0, 4], "N": [0, 0, 0], "O": [1, 0, 1]
         }
 
-    def get_position_and_values(self, address: str, dic_map: Dict[str, Tuple[int, ...]]) -> Tuple[int, int, str]:
+    def get_position_and_values(self, address: str, dic_map: Dict[str, Tuple[int, ...]], scenario: str) -> Tuple[int, int, str]:
         """Helper function to fetch positional and value details."""
         first_position: int = dic_map[address][0]
         com_value: int = dic_map[address][1]
-        f_val: str = self.scenario[first_position:first_position + 1]
+        f_val: str = scenario[first_position:first_position + 1]
         return first_position, com_value, f_val
 
-    def get_default_value(self) -> Optional[str]:
-        """Main function to calculate the default value."""
+    def get_default_value(self, datasource: str, scenario: str, charname: str) -> Optional[str]:
+        """Main function to calculate the default value with dynamic inputs."""
         # Extract relevant substrings
-        data_source_initial: str = self.datasource[:1]
-        person: str = self.charname[1:2]
-        address: str = self.charname[2:3]
+        data_source_initial: str = datasource[:1]
+        person: str = charname[1:2]
+        address: str = charname[2:3]
 
         # Early return if scenario is empty
-        if not self.scenario:
+        if not scenario:
             return None
         
         # Get first positional values from dic_T
-        first_position, com_value, f_val = self.get_position_and_values(address, self.dic_T)
+        first_position, com_value, f_val = self.get_position_and_values(address, self.dic_T, scenario)
         
         # Default value set to None
         d_value: Optional[str] = None
         
         # Check first condition
-        if int(f_val) == int(com_value) or self.scenario[:1] == "1":
+        if int(f_val) == int(com_value) or scenario[:1] == "1":
             d_value = "T"
         
         # Get second positional values from dic_
-        _, second_position, s_val = self.get_position_and_values(address, self.dic_)
+        _, second_position, s_val = self.get_position_and_values(address, self.dic_, scenario)
         
         # Final condition check
         if int(f_val) == int(com_value) and int(s_val) == int(com_value):
