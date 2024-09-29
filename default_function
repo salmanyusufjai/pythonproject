@@ -8,16 +8,27 @@ class ScenarioProcessor:
             "F": [7, 1], "N": [8, 1], "O": [9, 1]
         }
         self.dic_: Dict[str, Tuple[int, int, int]] = {
-            "C": [0, 0], "D": [1, 0, 1], "P": [2, 0, 2], "Q": [3, 0, 3],
+            "C": [0, 0, 2], "D": [1, 0, 1], "P": [2, 0, 2], "Q": [3, 0, 3],
             "E": [0, 0, 2], "F": [1, 0, 4], "N": [0, 0, 0], "O": [1, 0, 1]
         }
 
-    def get_position_and_values(self, address: str, dic_map: Dict[str, Tuple[int, ...]], scenario: str) -> Tuple[int, int, str]:
-        """Helper function to fetch positional and value details."""
+    def get_position_and_values(self, address: str, dic_map: Dict[str, Tuple[int, ...]], scenario: str) -> Tuple[int, int, str, Optional[int], Optional[str]]:
+        """
+        Helper function to fetch positional and value details.
+        Returns both first and second positions and their corresponding scenario values, if available.
+        """
         first_position: int = dic_map[address][0]
         com_value: int = dic_map[address][1]
         f_val: str = scenario[first_position:first_position + 1]
-        return first_position, com_value, f_val
+
+        # Check if the dictionary has three values, if so, get second position and value
+        second_position: Optional[int] = None
+        s_val: Optional[str] = None
+        if len(dic_map[address]) == 3:
+            second_position = dic_map[address][2]
+            s_val = scenario[second_position:second_position + 1]
+
+        return first_position, com_value, f_val, second_position, s_val
 
     def get_default_value(self, datasource: str, scenario: str, charname: str) -> Optional[str]:
         """Main function to calculate the default value with dynamic inputs."""
@@ -30,8 +41,8 @@ class ScenarioProcessor:
         if not scenario:
             return None
         
-        # Get first positional values from dic_T
-        first_position, com_value, f_val = self.get_position_and_values(address, self.dic_T, scenario)
+        # Get first and second positional values from dic_T
+        first_position, com_value, f_val, second_position, s_val = self.get_position_and_values(address, self.dic_T, scenario)
         
         # Default value set to None
         d_value: Optional[str] = None
@@ -40,11 +51,9 @@ class ScenarioProcessor:
         if int(f_val) == int(com_value) or scenario[:1] == "1":
             d_value = "T"
         
-        # Get second positional values from dic_
-        _, second_position, s_val = self.get_position_and_values(address, self.dic_, scenario)
-        
-        # Final condition check
-        if int(f_val) == int(com_value) and int(s_val) == int(com_value):
-            d_value = "_"
+        # If second_position exists (i.e., dic_map has three values), check further
+        if second_position is not None and s_val is not None:
+            if int(f_val) == int(com_value) and int(s_val) == int(com_value):
+                d_value = "_"
         
         return d_value
