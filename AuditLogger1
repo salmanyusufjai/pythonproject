@@ -1,0 +1,85 @@
+import logging
+import json
+import os
+
+class AuditLogger:
+    def __init__(self, config):
+        log_file = config['log']['audit_log_file']
+        logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s %(message)s')
+        self.logger = logging.getLogger("AuditLogger")
+        self.log_file = log_file  # Save the log file path for reading later
+
+    def log_stage(self, stage_name, stage_info):
+        """
+        Logs the stage information in JSON format. Handles nested JSON.
+        """
+        stage_json = self._create_stage_json(stage_name, stage_info)
+        self.logger.info(json.dumps(stage_json, indent=2))  # Pretty printing for nested JSON
+
+    def _create_stage_json(self, stage_name, stage_info):
+        """
+        Helper method to create a stage JSON object. Handles nested JSON.
+        """
+        return {
+            "stage": stage_name,
+            "info": stage_info
+        }
+
+    def get_stage_info(self, stage_name):
+        """
+        Reads the log file and returns the JSON object for the given stage name. Handles nested JSON.
+        """
+        if not os.path.exists(self.log_file):
+            raise FileNotFoundError(f"Log file {self.log_file} does not exist.")
+
+        # Open the log file and search for the relevant stage information
+        with open(self.log_file, 'r') as file:
+            for line in file:
+                try:
+                    # Extract only the JSON part from the log
+                    log_entry = line.split(" ", 1)[-1].strip()
+                    stage_data = json.loads(log_entry)  # Convert string to JSON (dict)
+                    
+                    if stage_data.get("stage") == stage_name:
+                        return stage_data
+                except json.JSONDecodeError:
+                    # Skip lines that are not in JSON format
+                    continue
+        
+        return None  # If no stage is found, return None
+
+
+
+
+from config_loader import ConfigLoader
+from audit_logger import AuditLogger
+
+# Load configuration
+config_loader = ConfigLoader()
+config_loader.load_config('config.yml')
+config = config_loader.config
+
+# Create AuditLogger
+audit_logger = AuditLogger(config)
+
+# Nested JSON for stage info
+nested_stage_info = {
+    "task": "data loading",
+    "status": "in-progress",
+    "details": {
+        "start_time": "2024-10-05 10:00:00",
+        "end_time": None,
+        "records_processed": 1500,
+        "source": {
+            "type": "API",
+            "url": "https://api.example.com/data"
+        }
+    }
+}
+
+# Log the stage
+audit_logger.log_stage("Stage1", nested_stage_info)
+
+# Retrieve stage info from the log
+stage1_info = audit_logger.get_stage_info("Stage1")
+print("Stage1 Info:", stage1_info)
