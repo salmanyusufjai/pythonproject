@@ -1,0 +1,154 @@
+import logging
+import json
+import time
+
+# Configure logging
+logging.basicConfig(
+    filename='process_audit.log',
+    level=logging.INFO,
+    format='%(asctime)s %(message)s'
+)
+
+class Audit:
+    def __init__(self, log_file='process_audit.log'):
+        # Internal dictionary to store audit data in memory
+        self.audit_dict = {}
+        self.log_file = log_file
+
+    def log_audit(self, stage_name, audit_data):
+        """Log audit data for a specific stage and store it in memory"""
+        self.audit_dict[stage_name] = audit_data
+        # Log the audit to a file, including nested structures
+        logging.info(json.dumps({stage_name: audit_data}, indent=4))
+
+    def get_audit_json(self, stage_name):
+        """Return audit data for a given stage, check memory first, then log file"""
+        # Check if data exists in memory
+        if stage_name in self.audit_dict:
+            return json.dumps({stage_name: self.audit_dict[stage_name]}, indent=4)
+        
+        # If not in memory, load from the log file
+        return self._read_from_log(stage_name)
+
+    def _read_from_log(self, stage_name):
+        """Read audit data for a specific stage from the log file"""
+        try:
+            with open(self.log_file, 'r') as log_file:
+                for line in log_file:
+                    # Each line is a separate JSON structure
+                    try:
+                        log_entry = json.loads(line.strip())
+                        if stage_name in log_entry:
+                            return json.dumps(log_entry, indent=4)  # Return if the stage is found
+                    except json.JSONDecodeError:
+                        continue  # Skip lines that don't contain valid JSON
+            return json.dumps({"error": f"Stage {stage_name} not found in log file"}, indent=4)
+        except FileNotFoundError:
+            return json.dumps({"error": "Log file not found"}, indent=4)
+
+
+class Stage1:
+    def __init__(self, audit):
+        self.audit = audit  # Audit class instance
+
+    def execute(self):
+        audit_data = {
+            "description": "Data Extraction",
+            "status": "completed",
+            "extracted_rows": 1000,
+            "data_sources": [
+                {"source": "database", "rows": 800},
+                {"source": "csv", "rows": 200}
+            ],
+            "timestamp": time.time()
+        }
+        self.audit.log_audit("Stage_1", audit_data)
+
+    def get_audit(self):
+        return self.audit.get_audit_json("Stage_1")
+
+
+class Stage2:
+    def __init__(self, audit):
+        self.audit = audit  # Audit class instance
+
+    def execute(self):
+        # Fetch Stage 1 audit data (from memory or log file)
+        stage_1_audit = json.loads(self.audit.get_audit_json("Stage_1"))
+        extracted_rows = stage_1_audit["Stage_1"]["extracted_rows"]
+
+        audit_data = {
+            "description": "Data Transformation",
+            "status": "completed",
+            "transformed_rows": extracted_rows,
+            "transform_details": {
+                "actions": ["normalize", "filter_missing", "convert_types"],
+                "steps": 3
+            },
+            "timestamp": time.time()
+        }
+        self.audit.log_audit("Stage_2", audit_data)
+
+    def get_audit(self):
+        return self.audit.get_audit_json("Stage_2")
+
+
+class Stage3:
+    def __init__(self, audit):
+        self.audit = audit  # Audit class instance
+
+    def execute(self):
+        # Fetch Stage 2 audit data (from memory or log file)
+        stage_2_audit = json.loads(self.audit.get_audit_json("Stage_2"))
+        transformed_rows = stage_2_audit["Stage_2"]["transformed_rows"]
+
+        audit_data = {
+            "description": "Data Validation",
+            "status": "completed",
+            "validated_rows": transformed_rows,
+            "validation_details": {
+                "passed": 980,
+                "failed": 20,
+                "error_log": [
+                    {"row_id": 101, "error": "missing_value"},
+                    {"row_id": 203, "error": "type_mismatch"}
+                ]
+            },
+            "timestamp": time.time()
+        }
+        self.audit.log_audit("Stage_3", audit_data)
+
+    def get_audit(self):
+        return self.audit.get_audit_json("Stage_3")
+
+
+
+
+class ProcessController:
+    def __init__(self):
+        self.audit = Audit()  # Create a single audit instance
+
+    def run_process(self):
+        # Execute all stages in order
+        stage1 = Stage1(self.audit)
+        stage1.execute()
+
+        stage2 = Stage2(self.audit)
+        stage2.execute()
+
+        stage3 = Stage3(self.audit)
+        stage3.execute()
+
+    def get_stage_audit(self, stage_name):
+        return self.audit.get_audit_json(stage_name)
+
+if __name__ == "__main__":
+    process = ProcessController()
+
+    # Uncomment to run the process and log audit data
+    # process.run_process()
+
+    # Fetch audit data for a specific stage (nested)
+    stage_name = "Stage_3"
+    audit_data = process.get_stage_audit(stage_name)
+    print(f"Audit data for {stage_name}: {audit_data}")
