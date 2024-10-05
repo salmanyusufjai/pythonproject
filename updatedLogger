@@ -1,0 +1,118 @@
+import logging
+import json
+import os
+from datetime import datetime
+
+class AuditLogger:
+    def __init__(self, config):
+        # Generate a log file name with the current timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_file_name = f"audit_log_{timestamp}.log"
+        log_file_path = os.path.join(config['log']['log_dir'], log_file_name)
+        
+        # Configure logging with the generated file name
+        logging.basicConfig(filename=log_file_path, level=logging.INFO, format='%(asctime)s %(message)s')
+        self.logger = logging.getLogger("AuditLogger")
+        self.log_file = log_file_path  # Save the log file path
+
+    def log_stage(self, stage_name, stage_info):
+        """
+        Logs the stage information in JSON format as a single line.
+        """
+        stage_json = self._create_stage_json(stage_name, stage_info)
+        # Log JSON as a single line (compact representation)
+        self.logger.info(json.dumps(stage_json))  # No indentation
+
+    def _create_stage_json(self, stage_name, stage_info):
+        """
+        Helper method to create a stage JSON object. Handles nested JSON.
+        """
+        return {
+            "stage": stage_name,
+            "info": stage_info
+        }
+
+    @staticmethod
+    def get_latest_log_file(log_dir):
+        """
+        Get the latest log file based on timestamp in the file name.
+        """
+        # List all files in the log directory
+        log_files = [f for f in os.listdir(log_dir) if f.startswith("audit_log_") and f.endswith(".log")]
+        
+        if not log_files:
+            raise FileNotFoundError("No log files found in the directory.")
+        
+        # Sort log files based on timestamp in the file name (assuming format: audit_log_YYYYMMDD_HHMMSS.log)
+        log_files.sort(reverse=True)
+        latest_log_file = log_files[0]  # The first file after sorting is the latest
+        
+        return os.path.join(log_dir, latest_log_file)
+
+    def get_stage_info_from_latest_log(self, stage_name, log_dir):
+        """
+        Reads the latest log file and returns the JSON object for the given stage name.
+        """
+        latest_log_file = self.get_latest_log_file(log_dir)
+        
+        with open(latest_log_file, 'r') as file:
+            for line in file:
+                # Extract only the part after the timestamp, which is the JSON content
+                log_entry = self._extract_json_from_log_line(line)
+                if log_entry:
+                    try:
+                        stage_data = json.loads(log_entry)  # Parse JSON
+                        if stage_data.get("stage") == stage_name:
+                            return stage_data
+                    except json.JSONDecodeError:
+                        # Skip lines that aren't valid JSON
+                        continue
+        
+        return None  # If no matching stage is found
+
+    def _extract_json_from_log_line(self, line):
+        """
+        Extracts the JSON content from a log line by removing the timestamp part.
+        Example log line: '2024-10-05 12:34:56 {"stage": "Stage1", "info": {...}}'
+        """
+        try:
+            # Split the log line by the first space after the timestamp (the JSON starts after this)
+            return line.split(" ", 1)[1].strip()  # Extract the JSON part
+        except IndexError:
+            return None  # In case the line doesn't have the expected format
+
+
+
+from config_loader import ConfigLoader
+from audit_logger import AuditLogger
+
+# Load configuration
+config_loader = ConfigLoader()
+config_loader.load_config('config.yml')
+config = config_loader.config
+
+# Create AuditLogger
+audit_logger = AuditLogger(config)
+
+# Nested JSON for stage info
+nested_stage_info = {
+    "task": "data loading",
+    "status": "in-progress",
+    "details": {
+        "start_time": "2024-10-05 10:00:00",
+        "end_time": None,
+        "records_processed": 1500,
+        "source": {
+            "type": "API",
+            "url": "https://api.example.com/data"
+        }
+    }
+}
+
+# Log the stage (this creates a new log file with a timestamp)
+audit_logger.log_stage("Stage1", nested_stage_info)
+
+# Later, retrieve stage info from the latest log file
+log_dir = config['log']['log_dir']
+stage_info = audit_logger.get_stage_info_from_latest_log("Stage1", log_dir)
+print("Stage Info:", stage_info)
