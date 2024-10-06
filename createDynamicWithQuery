@@ -1,0 +1,90 @@
+from google.cloud import bigquery
+
+# Initialize BigQuery client
+client = bigquery.Client()
+
+# Define tables and their field mappings
+tables = {
+    'table1': {
+        'fields': {
+            'a1': 'alias_a1',
+            'b1': 'alias_b1',
+            'c1': 'alias_c1'
+        },
+        'date_field': 'createddate'
+    },
+    'table2': {
+        'fields': {
+            'd1': 'alias_d1',
+            'e3': 'alias_e3',
+            'z1': 'alias_z1'
+        },
+        'date_field': 'createddate'
+    },
+    # Add more tables here if needed
+}
+
+# Helper function to generate the SELECT clause dynamically
+def generate_select_clause(table_name, field_dict):
+    return ", ".join([f"{col} AS {alias}" for col, alias in field_dict.items()])
+
+# Start building the query
+with_clauses = []
+join_clauses = []
+select_clauses = ["main_table.*"]
+
+# Loop through the tables and generate the WITH and JOIN clauses
+for table_name, config in tables.items():
+    # Generate the select clause for the table
+    select_clause = generate_select_clause(table_name, config['fields'])
+    
+    # Generate the WITH clause for filtering by latest date
+    with_clause = f"""
+    {table_name}_filtered AS (
+        SELECT
+            {select_clause}, CRN,
+            PARSE_DATE('%d/%m/%Y', {config['date_field']}) AS created_date,
+            ROW_NUMBER() OVER (PARTITION BY CRN ORDER BY PARSE_DATE('%d/%m/%Y', {config['date_field']}) DESC) AS row_num
+        FROM `project.dataset.{table_name}`
+    )
+    """
+    
+    # Add the WITH clause to the list
+    with_clauses.append(with_clause)
+    
+    # Generate the join clause
+    join_clause = f"""
+    LEFT JOIN (
+        SELECT * FROM {table_name}_filtered WHERE row_num = 1
+    ) AS {table_name}
+    ON main_table.CRN = {table_name}.CRN
+    """
+    
+    # Add the join clause to the list
+    join_clauses.append(join_clause)
+    
+    # Add the selected fields from this table to the final SELECT clause
+    select_clauses.append(", ".join([f"{table_name}.{alias}" for alias in config['fields'].values()]))
+
+# Combine the WITH, JOIN, and SELECT clauses into the final query
+final_query = f"""
+WITH
+{", ".join(with_clauses)}
+SELECT
+{", ".join(select_clauses)}
+FROM `project.dataset.main_table` AS main_table
+{"".join(join_clauses)}
+"""
+
+# Execute the query
+job = client.query(final_query)
+
+# Wait for the job to complete
+results = job.result()
+
+# Optional: Store results in a new table
+destination_table = "project.dataset.new_combined_table"
+job_config = bigquery.QueryJobConfig(destination=destination_table, write_disposition="WRITE_TRUNCATE")
+job = client.query(final_query, job_config=job_config)
+job.result()  # Wait for the job to complete
+print(f"Data successfully written to {destination_table}")
