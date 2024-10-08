@@ -1,0 +1,61 @@
+def generate_dynamic_query(table_name, field_mappings, limit=None):
+    # Base query structure
+    query_template = """
+    CREATE OR REPLACE TABLE `{table_name}` AS
+    WITH maintable AS (
+        SELECT * FROM `{table_name}`
+    ),
+    decryptData AS (
+        SELECT {field_selection}
+        FROM maintable m, UNNEST(m.officer_legacy.history) AS o
+    ),
+    main2 AS (
+        SELECT d.entityKey AS entitykey, {main2_field_selection}
+        FROM decryptData d
+        GROUP BY 1
+    )
+    SELECT * EXCEPT(entityKey) FROM main2;
+    """
+
+    # Dynamically generate field selections for decryptData part
+    field_selection = ", ".join([
+        f"m.{key} AS {value}" for key, value in field_mappings.items()
+    ])
+
+    # Dynamically generate field selections for main2 part
+    main2_field_selection = ", ".join([
+        f"ANY_VALUE(d.{key}) AS {value}" for key, value in field_mappings.items()
+    ])
+
+    # If limit is provided, add it to the query
+    if limit:
+        limit_clause = f"LIMIT {limit}"
+        query_template += limit_clause
+
+    # Format the query with dynamic values
+    query = query_template.format(
+        table_name=table_name,
+        field_selection=field_selection,
+        main2_field_selection=main2_field_selection
+    )
+
+    return query
+
+
+# Example usage
+table_name = "dfa-dna-ws5030-uk-uat-prd-e697"
+field_mappings = {
+    "purposingHeader.entityKey": "entitykey",
+    "purposingHeader": "purposingHeader",
+    "OFFICER_LEGACY": "OFFICER_LEGACY",
+    "NONLIMITED_REGISTER": "NONLIMITED_REGISTER",
+    "rawfields.PERSON_NEW_APPOINTMENT_TYPE": "PERSON_NEW_APPOINTMENT_TYPE",
+    "rawfields.PERSON_DATE_OF_BIRTH": "PERSON_DATE_OF_BIRTH",
+    "rawfields.PERSON_NEW_POSTCODE": "PERSON_NEW_POSTCODE",
+    "protectionInfo.keyId": "PERSON_DETAILS_STRING"
+}
+
+# Generate the query dynamically
+query = generate_dynamic_query(table_name, field_mappings, limit=200000)
+
+print(query)
