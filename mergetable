@@ -1,0 +1,99 @@
+from google.cloud import bigquery
+from collections import defaultdict
+
+# Initialize a BigQuery client
+client = bigquery.Client()
+
+# Master table information
+master_table = "project.dataset.master_table"
+
+# Your dictionary input
+table_dict = [
+    {'retro_date': '2023-01-01', 'output_table_name': 'project.dataset.table1_ebi'},
+    {'retro_date': '2023-01-01', 'output_table_name': 'project.dataset.table2'},
+    {'retro_date': '2023-01-01', 'output_table_name': 'project.dataset.table3'},
+    {'retro_date': '2023-02-01', 'output_table_name': 'project.dataset.table4_ebi'},
+    {'retro_date': '2023-02-01', 'output_table_name': 'project.dataset.table5'}
+]
+
+# Step 1: Group tables by retro_date
+grouped_tables = defaultdict(list)
+for entry in table_dict:
+    retro_date = entry['retro_date']
+    output_table_name = entry['output_table_name']
+    grouped_tables[retro_date].append(output_table_name)
+
+# Function to get column names dynamically from BigQuery schema
+def get_table_columns(table_name):
+    table = client.get_table(table_name)
+    columns = [field.name for field in table.schema]
+    return columns
+
+# Function to process each group
+def process_group(rundate, tables):
+    # Identify the table that contains 'ebi' in its name
+    ebi_table = None
+    other_tables = []
+    
+    for table in tables:
+        if "ebi" in table:
+            ebi_table = table
+        else:
+            other_tables.append(table)
+    
+    if not ebi_table:
+        raise ValueError(f"No 'ebi' table found for rundate {rundate}")
+    
+    # Step 2: Get columns from the tables
+    ebi_columns = get_table_columns(ebi_table)
+    other_columns = {table: get_table_columns(table) for table in other_tables}
+
+    # Step 3: Build the SQL query dynamically based on columns
+    query = f"""
+    -- Get companyid from master table
+    WITH master AS (
+        SELECT companyid FROM `{master_table}`
+    ),
+    -- Get data from ebi table excluding companyid
+    ebi_data AS (
+        SELECT companyid, {', '.join([f'{col}' for col in ebi_columns if col != 'companyid'])}
+        FROM `{ebi_table}`
+        WHERE companyid IN (SELECT companyid FROM master)
+    )
+    """
+    
+    # Add other tables dynamically with their columns
+    for table, columns in other_columns.items():
+        query += f""",
+        {table}_data AS (
+            SELECT companyid, {', '.join([f'{col}' for col in columns if col != 'companyid'])}
+            FROM `{table}`
+            WHERE companyid IN (SELECT companyid FROM master)
+        )
+        """
+    
+    # Final SELECT to combine data
+    query += f"""
+    SELECT master.companyid, ebi_data.*, 
+    """
+    query += ", ".join([f"{table}_data.*" for table in other_columns.keys()])  # Add other table data columns
+    query += f"""
+    FROM master
+    LEFT JOIN ebi_data ON master.companyid = ebi_data.companyid
+    """
+    
+    for table in other_columns.keys():
+        query += f"LEFT JOIN {table}_data ON master.companyid = {table}_data.companyid\n"
+
+    # Step 4: Execute the query and save the result into a new table
+    new_table_name = f"project.dataset.new_table_{rundate.replace('-', '_')}"
+    job_config = bigquery.QueryJobConfig(destination=new_table_name)
+    
+    query_job = client.query(query, job_config=job_config)
+    query_job.result()  # Wait for the query to complete
+    
+    print(f"New table created: {new_table_name}")
+
+# Step 5: Process each group by retro_date
+for rundate, tables in grouped_tables.items():
+    process_group(rundate, tables)
