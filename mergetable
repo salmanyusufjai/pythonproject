@@ -23,11 +23,10 @@ for entry in table_dict:
     output_table_name = entry['output_table_name']
     grouped_tables[retro_date].append(output_table_name)
 
-# Function to get column names dynamically from BigQuery schema
-def get_table_columns(table_name):
-    table = client.get_table(table_name)
-    columns = [field.name for field in table.schema]
-    return columns
+# Helper function to extract alias name from the full table name
+def get_alias_name(full_table_name):
+    # Extract alias (table name without project and dataset, assuming format is project.dataset.tablename)
+    return full_table_name.split('.')[-1]  # Returns "table2" from "project.dataset.table2"
 
 # Function to process each group
 def process_group(rundate, tables):
@@ -44,11 +43,10 @@ def process_group(rundate, tables):
     if not ebi_table:
         raise ValueError(f"No 'ebi' table found for rundate {rundate}")
     
-    # Step 2: Get columns from the tables
-    ebi_columns = get_table_columns(ebi_table)
-    other_columns = {table: get_table_columns(table) for table in other_tables}
+    # Step 2: Build the SQL query dynamically based on columns
+    # Use alias for ebi_table
+    ebi_table_alias = get_alias_name(ebi_table)
 
-    # Step 3: Build the SQL query dynamically based on columns
     query = f"""
     -- Get companyid from master table
     WITH master AS (
@@ -56,18 +54,19 @@ def process_group(rundate, tables):
     ),
     -- Get data from ebi table excluding companyid
     ebi_data AS (
-        SELECT companyid, {', '.join([f'{col}' for col in ebi_columns if col != 'companyid'])}
-        FROM `{ebi_table}`
+        SELECT * EXCEPT(companyid)
+        FROM `{ebi_table}` AS {ebi_table_alias}
         WHERE companyid IN (SELECT companyid FROM master)
     )
     """
     
-    # Add other tables dynamically with their columns
-    for table, columns in other_columns.items():
+    # Add other tables dynamically with their aliases and columns
+    for table in other_tables:
+        table_alias = get_alias_name(table)
         query += f""",
-        {table}_data AS (
-            SELECT companyid, {', '.join([f'{col}' for col in columns if col != 'companyid'])}
-            FROM `{table}`
+        {table_alias}_data AS (
+            SELECT * EXCEPT(companyid)
+            FROM `{table}` AS {table_alias}
             WHERE companyid IN (SELECT companyid FROM master)
         )
         """
@@ -76,14 +75,15 @@ def process_group(rundate, tables):
     query += f"""
     SELECT master.companyid, ebi_data.*, 
     """
-    query += ", ".join([f"{table}_data.*" for table in other_columns.keys()])  # Add other table data columns
+    query += ", ".join([f"{get_alias_name(table)}_data.*" for table in other_tables])  # Add other table data columns
     query += f"""
     FROM master
     LEFT JOIN ebi_data ON master.companyid = ebi_data.companyid
     """
     
-    for table in other_columns.keys():
-        query += f"LEFT JOIN {table}_data ON master.companyid = {table}_data.companyid\n"
+    for table in other_tables:
+        table_alias = get_alias_name(table)
+        query += f"LEFT JOIN {table_alias}_data ON master.companyid = {table_alias}_data.companyid\n"
 
     # Step 4: Execute the query and save the result into a new table
     new_table_name = f"project.dataset.new_table_{rundate.replace('-', '_')}"
