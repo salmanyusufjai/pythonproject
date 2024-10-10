@@ -1,0 +1,21 @@
+# Given dictionaries
+dict1 = [{"retrodate":"01012024","mergetable":"abc"},{"retrodate":"01052024","mergetable":"abc"}]
+dict2 = [{"retrodate":"01032024","tablename":"dsds",'ddd':"cs"},{"retrodate":"01032024","tablename":"tdd",'ddd':"cd"},
+         {"retrodate":"01052024","tablename":"dsd"},{"retrodate":"01012024","tablename":"ere",'ddd':"kp"}]
+
+# Convert the second list to a dictionary based on retrodate for faster lookup
+lookup_dict = {entry['retrodate']: entry for entry in dict2}
+
+# Merge logic
+merged_results = []
+for entry1 in dict1:
+    retrodate = entry1['retrodate']
+    if retrodate in lookup_dict:
+        # Merge dictionaries using dictionary unpacking
+        merged_entry = {**entry1, **lookup_dict[retrodate]}
+        merged_results.append(merged_entry)
+
+# Display the merged results
+import pandas as pd
+merged_df = pd.DataFrame(merged_results)
+print(merged_df)
