@@ -43,12 +43,6 @@ def get_table_type(full_table_name):
     else:
         return 'default'
 
-# Function to generate the SQL excluding specific columns
-def generate_sql_with_exclusions(table_name, alias_name, exclude_columns):
-    # Use the EXCEPT clause in SQL to exclude the specified columns
-    exclude_clause = ', '.join([col for col in exclude_columns])
-    return f"SELECT * EXCEPT({exclude_clause}) FROM `{table_name}` AS {alias_name}"
-
 # Function to process each group
 def process_group(rundate, tables):
     # Identify the table that contains 'ebi' in its name
@@ -65,41 +59,49 @@ def process_group(rundate, tables):
     if not ebi_table:
         raise ValueError(f"No 'ebi' table found for rundate {rundate}")
     
-    # Step 2: Build the SQL query dynamically based on columns to exclude
+    # Step 2: Build the SQL query without exclusions in CTEs
     ebi_table_alias = get_alias_name(ebi_table['output_table_name'])
-    ebi_exclude_columns = exclusion_config.get('ebi', ['companyid'])  # Default to excluding companyid if not found
-    ebi_exclusions = generate_sql_with_exclusions(ebi_table['output_table_name'], ebi_table_alias, ebi_exclude_columns)
 
     query = f"""
     -- Get companyid from master table
     WITH master AS (
         SELECT companyid FROM `{master_table}`
     ),
-    -- Get data from ebi table excluding specified columns
+    -- Get full data from ebi table (without exclusions)
     ebi_data AS (
-        {ebi_exclusions}
+        SELECT * FROM `{ebi_table['output_table_name']}` AS {ebi_table_alias}
         WHERE companyid IN (SELECT companyid FROM master)
     )
     """
     
-    # Add other tables dynamically with their exclusion rules
+    # Add other tables dynamically without exclusions
     for table_entry in other_tables:
         table_alias = get_alias_name(table_entry['output_table_name'])
-        table_type = get_table_type(table_entry['output_table_name'])
-        exclude_columns = exclusion_config.get(table_type, ['companyid'])  # Default to excluding companyid
-        exclusions = generate_sql_with_exclusions(table_entry['output_table_name'], table_alias, exclude_columns)
         query += f""",
         {table_alias}_data AS (
-            {exclusions}
+            SELECT * FROM `{table_entry['output_table_name']}` AS {table_alias}
             WHERE companyid IN (SELECT companyid FROM master)
         )
         """
     
-    # Final SELECT to combine data
+    # Final SELECT to combine data with exclusions
     query += f"""
-    SELECT master.companyid, ebi_data.*, 
+    SELECT master.companyid, 
+           ebi_data.* EXCEPT({', '.join(exclusion_config.get('ebi', ['companyid']))}), 
     """
-    query += ", ".join([f"{get_alias_name(table_entry['output_table_name'])}_data.*" for table_entry in other_tables])  # Add other table data columns
+    
+    # Add other tables and apply their exclusions in the final SELECT
+    for table_entry in other_tables:
+        table_alias = get_alias_name(table_entry['output_table_name'])
+        table_type = get_table_type(table_entry['output_table_name'])
+        exclude_columns = exclusion_config.get(table_type, ['companyid'])
+        
+        # Exclude the specified columns in the final SELECT
+        query += f"{table_alias}_data.* EXCEPT({', '.join(exclude_columns)}), "
+
+    # Remove the trailing comma and continue query
+    query = query.rstrip(", ") + "\n"
+
     query += f"""
     FROM master
     LEFT JOIN ebi_data ON master.companyid = ebi_data.companyid
