@@ -13,15 +13,12 @@ new_table_name = 'new_table_name'
 bucket_name = 'your_bucket_name'
 csv_file_name = 'your_file_name.csv'
 
-# Step 1: Define the column renaming dictionary
-# The key is the old column name, and the value is the new column name
+# Step 1: Define the column renaming dictionary (if any other renaming is required)
 column_rename_dict = {
-    "old_column_name1": "new_column_name1",
-    "old_column_name2": "new_column_name2",
-    # Add as many columns as you need
+    # Add other column renaming if needed, or leave this empty if not required
 }
 
-# Step 2: Dynamically build the SELECT query with the renamed columns
+# Step 2: Dynamically build the SELECT query with the conditional logic for creditlimit
 def build_dynamic_query():
     # Fetch the schema of the old table
     table = bigquery_client.get_table(f"{project_id}.{dataset_id}.{old_table_name}")
@@ -29,13 +26,27 @@ def build_dynamic_query():
     # Iterate through the schema to build the dynamic select query
     select_columns = []
     for field in table.schema:
-        if field.name in column_rename_dict:
-            # Rename column
+        if field.name == "company_number":
+            # Keep company_number as is
+            select_columns.append("company_number")
+        elif field.name == "NoliLimit" or field.name == "FINAL_limited_ltd":
+            # Skip NoliLimit and FINAL_limited_ltd from the new table
+            continue
+        elif field.name in column_rename_dict:
+            # Rename other columns based on the renaming dictionary
             select_columns.append(f"{field.name} AS {column_rename_dict[field.name]}")
         else:
             # Keep column as is
             select_columns.append(field.name)
     
+    # Add the new column creditlimit based on the condition
+    select_columns.append("""
+    CASE 
+        WHEN LEFT(company_number, 1) = 'B' THEN NoliLimit 
+        ELSE FINAL_limited_ltd 
+    END AS creditlimit
+    """)
+
     # Create the query string dynamically
     query = f"""
     CREATE OR REPLACE TABLE `{project_id}.{dataset_id}.{new_table_name}` AS
@@ -45,12 +56,12 @@ def build_dynamic_query():
     
     return query
 
-# Step 3: Rename columns dynamically using the query
-def rename_columns_dynamically():
+# Step 3: Rename columns dynamically and add creditlimit
+def rename_columns_and_add_creditlimit():
     query = build_dynamic_query()
     query_job = bigquery_client.query(query)
     query_job.result()  # Wait for the query to finish
-    print(f"Table {new_table_name} created with renamed columns.")
+    print(f"Table {new_table_name} created with renamed columns and creditlimit column.")
 
 # Step 4: Export the renamed table to Google Cloud Storage as pipe-separated CSV
 def export_table_to_gcs():
@@ -72,5 +83,5 @@ def export_table_to_gcs():
     print(f"Data successfully exported to {destination_uri} as a pipe-separated CSV.")
 
 # Step 5: Run both steps
-rename_columns_dynamically()
+rename_columns_and_add_creditlimit()
 export_table_to_gcs()
