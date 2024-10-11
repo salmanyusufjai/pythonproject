@@ -1,0 +1,43 @@
+import pandas as pd
+from google.cloud import bigquery
+from pandas_gbq import to_gbq
+
+# Initialize BigQuery client
+client = bigquery.Client()
+
+# Define your project and dataset details
+project_id = 'your_project_id'
+dataset_id = 'your_dataset'
+table_id = 'your_table'
+destination_table = 'your_new_table'
+
+# Define chunk size (adjust based on available memory)
+chunk_size = 10000  # Adjust this number based on your system's memory
+
+# Set specific columns to 0 and all others to 'M'
+specific_columns = ['columnA', 'columnB', 'columnC', 'columnD']  # Replace with your actual columns
+
+# Query to fetch only records where EntityKey is NULL
+query = f"""
+    SELECT *
+    FROM `{project_id}.{dataset_id}.{table_id}`
+    WHERE EntityKey IS NULL
+"""
+
+# Use BigQuery's pagination feature to fetch data in chunks
+iterator = client.query(query).to_dataframe_iterable(max_results=chunk_size)
+
+# Process each chunk
+for df_chunk in iterator:
+    # Set specific columns to 0 for the rows with NULL EntityKey
+    df_chunk[specific_columns] = 0  # Set these specific columns to 0
+
+    # Set all other columns (except EntityKey) to 'M'
+    for col in df_chunk.columns:
+        if col not in specific_columns and col != 'EntityKey':
+            df_chunk[col] = 'M'
+
+    # Append the processed chunk to a new BigQuery table
+    to_gbq(df_chunk, f'{dataset_id}.{destination_table}', project_id=project_id, if_exists='append')
+
+print("Processing completed and data has been written to BigQuery.")
