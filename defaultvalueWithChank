@@ -1,0 +1,55 @@
+import pandas as pd
+from google.cloud import bigquery
+from pandas_gbq import to_gbq
+
+# Initialize BigQuery client
+client = bigquery.Client()
+
+# Define your project, dataset, and table details
+full_table_name = 'your_project_id.your_dataset.your_new_table'  # Full table path
+source_table = 'your_project_id.your_dataset.your_table'  # Source table path
+
+# Define chunk size (page size for pagination)
+chunk_size = 10000  # Adjust this based on your memory capacity
+
+# Query to fetch only records where EntityKey is NULL
+query = f"""
+    SELECT *
+    FROM `{source_table}`
+    WHERE EntityKey IS NULL
+"""
+
+# Execute the query to get a job object
+query_job = client.query(query)
+
+# Get a result iterator
+results = query_job.result(page_size=chunk_size)
+
+# Create a flag to track the first chunk (for replacing the table)
+first_chunk = True
+
+# Process each page (batch of rows)
+for page in results.pages:
+    # Convert the current page of results to a DataFrame
+    df_chunk = page.to_dataframe()
+
+    # List of columns to exclude from modification
+    exclude_columns = ['EntityKey', 'CompanyNumber']
+
+    # Get all columns except the excluded ones
+    columns_to_modify = [col for col in df_chunk.columns if col not in exclude_columns]
+
+    # Convert all selected columns to string and set default value '_'
+    df_chunk[columns_to_modify] = df_chunk[columns_to_modify].astype(str)
+    df_chunk[columns_to_modify] = '_'
+
+    # Write the chunk to BigQuery, replace the table on the first iteration
+    if first_chunk:
+        # Replace the destination table for the first chunk
+        to_gbq(df_chunk, full_table_name, project_id='your_project_id', if_exists='replace')
+        first_chunk = False
+    else:
+        # Append subsequent chunks
+        to_gbq(df_chunk, full_table_name, project_id='your_project_id', if_exists='append')
+
+print("Processing completed and data has been written to BigQuery.")
