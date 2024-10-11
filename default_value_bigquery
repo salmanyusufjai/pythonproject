@@ -1,0 +1,56 @@
+from google.cloud import bigquery
+
+# Initialize BigQuery client
+client = bigquery.Client()
+
+# Define your project, dataset, and table details
+project_id = 'your_project_id'
+dataset_id = 'your_dataset'
+source_table = 'your_table'
+destination_table = 'your_new_table'
+
+# Full source table name
+source_table_full = f"{project_id}.{dataset_id}.{source_table}"
+
+# Full destination table name
+destination_table_full = f"{project_id}.{dataset_id}.{destination_table}"
+
+# Get the schema of the table
+table = client.get_table(source_table_full)
+schema = table.schema
+
+# List of columns to exclude
+exclude_columns = ['EntityKey', 'CompanyNumber']
+
+# Start building the query dynamically
+query = f"""
+CREATE OR REPLACE TABLE `{destination_table_full}` AS
+SELECT
+    EntityKey,
+    CompanyNumber,
+"""
+
+# Loop over the schema and dynamically create the transformation logic
+for field in schema:
+    if field.name not in exclude_columns:
+        # If the column is an integer, we cast it to string and handle NULL EntityKey
+        if field.field_type == 'INTEGER':
+            query += f"""
+    CASE WHEN EntityKey IS NULL THEN '_' ELSE CAST({field.name} AS STRING) END AS {field.name},
+    """
+        else:
+            # For other data types, just handle NULL EntityKey without casting
+            query += f"""
+    CASE WHEN EntityKey IS NULL THEN '_' ELSE {field.name} END AS {field.name},
+    """
+
+# Remove the trailing comma and finish the query
+query = query.rstrip(',') + f"\nFROM `{source_table_full}`;"
+
+# Print the generated query (optional)
+print(query)
+
+# Execute the dynamically generated query in BigQuery
+client.query(query).result()
+
+print(f"Transformation completed and new table `{destination_table_full}` has been created.")
