@@ -14,9 +14,6 @@ destination_table = 'your_new_table'
 # Define chunk size (adjust based on available memory)
 chunk_size = 10000  # Adjust this number based on your system's memory
 
-# Set specific columns to 0 and all others to 'M'
-specific_columns = ['columnA', 'columnB', 'columnC', 'columnD']  # Replace with your actual columns
-
 # Query to fetch only records where EntityKey is NULL
 query = f"""
     SELECT *
@@ -29,13 +26,15 @@ iterator = client.query(query).to_dataframe_iterable(max_results=chunk_size)
 
 # Process each chunk
 for df_chunk in iterator:
-    # Set specific columns to 0 for the rows with NULL EntityKey
-    df_chunk[specific_columns] = 0  # Set these specific columns to 0
+    # List of columns to exclude from modification
+    exclude_columns = ['EntityKey', 'CompanyNumber']
 
-    # Set all other columns (except EntityKey) to 'M'
-    for col in df_chunk.columns:
-        if col not in specific_columns and col != 'EntityKey':
-            df_chunk[col] = 'M'
+    # Get all columns except the excluded ones
+    columns_to_modify = [col for col in df_chunk.columns if col not in exclude_columns]
+
+    # Convert all selected columns to string and set to '_'
+    df_chunk[columns_to_modify] = df_chunk[columns_to_modify].astype(str)
+    df_chunk[columns_to_modify] = '_'
 
     # Append the processed chunk to a new BigQuery table
     to_gbq(df_chunk, f'{dataset_id}.{destination_table}', project_id=project_id, if_exists='append')
