@@ -1,0 +1,46 @@
+from google.cloud import bigquery
+
+# Sample input dictionaries (as you've provided)
+list1 = [{"rundate": "10102024", "tablename": "a.b.c"}, {"rundate": "10112024", "tablename": "a.b.d"}]
+list2 = [{"rundate": "10102024", "tablename": "a.b.c"}, {"rundate": "10112024", "tablename": "a.b.d"}]
+
+# Function to extract table names
+def extract_tablenames(list_of_dicts):
+    tablenames = []
+    for record in list_of_dicts:
+        if "tablename" in record:
+            tablenames.append(record["tablename"])
+    return tablenames
+
+# Extracting tablenames from both lists
+tablenames1 = extract_tablenames(list1)
+tablenames2 = extract_tablenames(list2)
+
+# Merging and deduplicating table names
+all_tablenames = set(tablenames1 + tablenames2)  # Using set to remove duplicates
+
+# Initialize BigQuery client
+client = bigquery.Client()
+
+# Constructing the SQL query to union all tables
+union_query = ""
+for i, tablename in enumerate(all_tablenames):
+    if i == 0:
+        union_query += f"SELECT * FROM `{tablename}`\n"
+    else:
+        union_query += f"UNION ALL\nSELECT * FROM `{tablename}`\n"
+
+# Option 1: Execute the query and save results in a new BigQuery table
+destination_table = "your_project.your_dataset.merged_table"  # Change this to your destination table
+job_config = bigquery.QueryJobConfig(destination=destination_table)
+
+# Run the query and write the merged data to a new table
+query_job = client.query(union_query, job_config=job_config)
+query_job.result()  # Wait for the job to complete
+
+print(f"Merged data written to {destination_table}")
+
+# Option 2: If you want to retrieve results in a dataframe without writing to a table
+# query_job = client.query(union_query)
+# results_df = query_job.result().to_dataframe()  # Fetch results as a pandas DataFrame
+# print(results_df)
