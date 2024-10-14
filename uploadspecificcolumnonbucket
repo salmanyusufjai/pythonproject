@@ -1,0 +1,57 @@
+import pandas as pd
+from google.cloud import bigquery
+from google.cloud import storage
+import os
+
+# Initialize BigQuery client and Cloud Storage client
+bigquery_client = bigquery.Client()
+storage_client = storage.Client()
+
+# Define your bucket and file names
+BUCKET_NAME = 'your_bucket_name'
+BIGQUERY_TABLE = 'your_project.your_dataset.your_table'
+TEXT_FILE_PATH = 'path_to_column_names.txt'  # Path to your text file with column names
+EXPORT_FILE_NAME = 'exported_data.csv'
+
+# Step 1: Read the list of columns from the text file
+def read_columns_from_txt(txt_file_path):
+    with open(txt_file_path, 'r') as f:
+        columns = [line.strip() for line in f.readlines()]
+    return columns
+
+# Step 2: Create a BigQuery query based on the columns list
+def create_bigquery_query(table, columns):
+    columns_str = ', '.join(columns)
+    query = f"SELECT {columns_str} FROM `{table}`"
+    return query
+
+# Step 3: Run the query and save results to a CSV file in the bucket
+def export_to_gcs(query, bucket_name, export_file_name):
+    # Execute the query
+    job = bigquery_client.query(query)
+    df = job.to_dataframe()  # Convert the results to a pandas DataFrame
+    
+    # Save the DataFrame to a CSV file locally
+    local_file = f"/tmp/{export_file_name}"  # Temporary local file
+    df.to_csv(local_file, index=False)  # Save CSV locally
+    
+    # Upload the CSV file to Google Cloud Storage
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(export_file_name)
+    blob.upload_from_filename(local_file)
+    
+    print(f"File exported to GCS bucket: {bucket_name}/{export_file_name}")
+
+# Main function
+def main():
+    # Step 1: Read columns from the text file
+    columns = read_columns_from_txt(TEXT_FILE_PATH)
+    
+    # Step 2: Create a SQL query with the columns
+    query = create_bigquery_query(BIGQUERY_TABLE, columns)
+    
+    # Step 3: Export the query result to a CSV in the GCS bucket
+    export_to_gcs(query, BUCKET_NAME, EXPORT_FILE_NAME)
+
+if __name__ == "__main__":
+    main()
