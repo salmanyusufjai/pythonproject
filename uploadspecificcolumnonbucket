@@ -65,3 +65,28 @@ def delete_temp_table(temp_table):
     print(f"Temporary table `{temp_table}` deleted.")
 
 # Main function
+def main():
+    # Step 1: Read columns from the text file
+    columns_from_file = read_columns_from_txt(TEXT_FILE_PATH)
+    
+    # Step 2: Get available columns from the BigQuery table schema
+    available_columns_in_table = get_available_columns_from_table(BIGQUERY_TABLE)
+    
+    # Step 3: Filter the columns to include only those that exist in the BigQuery table
+    valid_columns = filter_existing_columns(columns_from_file, available_columns_in_table)
+    
+    if not valid_columns:
+        print("None of the columns from the text file exist in the BigQuery table.")
+        return
+    
+    # Step 4: Create a temporary table with the valid columns
+    create_intermediate_table(BIGQUERY_TABLE, valid_columns, TEMP_TABLE_NAME)
+    
+    # Step 5: Export the temporary table to a CSV file in GCS with | as delimiter
+    export_table_to_gcs(TEMP_TABLE_NAME, BUCKET_NAME, EXPORT_FILE_NAME)
+    
+    # Step 6: Clean up by deleting the temporary table
+    delete_temp_table(TEMP_TABLE_NAME)
+
+if __name__ == "__main__":
+    main()
