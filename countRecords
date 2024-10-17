@@ -1,0 +1,41 @@
+from google.cloud import bigquery
+
+def get_bigquery_table_record_count(project_id, dataset_id, table_id):
+    """
+    This function returns the total count of records in a BigQuery table.
+    
+    Args:
+    project_id (str): The GCP project ID.
+    dataset_id (str): The BigQuery dataset ID.
+    table_id (str): The BigQuery table ID.
+
+    Returns:
+    int: The total number of records in the specified BigQuery table.
+    """
+    # Create a BigQuery client
+    client = bigquery.Client(project=project_id)
+    
+    # Construct the query to count the total records
+    query = f"""
+        SELECT COUNT(*) as total_count 
+        FROM `{project_id}.{dataset_id}.{table_id}`
+    """
+    
+    # Execute the query
+    query_job = client.query(query)
+    
+    # Wait for the query to finish
+    results = query_job.result()
+
+    # Get the total count from the results
+    for row in results:
+        return row.total_count
+
+# Example usage:
+if __name__ == "__main__":
+    project_id = "your-project-id"
+    dataset_id = "your-dataset-id"
+    table_id = "your-table-id"
+    
+    total_records = get_bigquery_table_record_count(project_id, dataset_id, table_id)
+    print(f"Total records in table: {total_records}")
