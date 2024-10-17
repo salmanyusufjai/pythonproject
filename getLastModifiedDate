@@ -1,0 +1,24 @@
+from google.cloud import bigquery
+from datetime import datetime
+
+# Initialize the BigQuery client
+client = bigquery.Client()
+
+# Replace with your project_id, dataset_id, and table_id
+project_id = "your-project-id"
+dataset_id = "your-dataset-id"
+table_id = "your-table-id"
+
+# Construct the table reference
+table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+# Get table metadata
+table = client.get_table(table_ref)
+
+# Get the last modified time (in milliseconds since the epoch)
+last_modified_time = table.modified
+
+# Convert to a human-readable datetime
+last_modified_date = datetime.fromtimestamp(last_modified_time.timestamp())
+
+print(f"Table Last Modified Date: {last_modified_date}")
