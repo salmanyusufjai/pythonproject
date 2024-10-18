@@ -1,9 +1,15 @@
 pip install google-cloud-storage
-
+import os
 from google.cloud import storage
 
-def upload_file_to_gcs(bucket_name, source_file_name, destination_blob_name):
-    """Uploads a file to the GCS bucket."""
+def upload_file_to_gcs(bucket_name, source_file_name, destination_folder):
+    """Uploads a file to a GCS bucket, preserving the original filename."""
+    
+    # Extract the file name from the source_file_name
+    file_name = os.path.basename(source_file_name)
+    
+    # Create a full destination path by appending the file name to the destination folder
+    destination_blob_name = os.path.join(destination_folder, file_name)
     
     # Create a client
     storage_client = storage.Client()
@@ -11,17 +17,17 @@ def upload_file_to_gcs(bucket_name, source_file_name, destination_blob_name):
     # Get the bucket
     bucket = storage_client.bucket(bucket_name)
     
-    # Create a new blob (file object in the bucket)
+    # Create a new blob in the bucket
     blob = bucket.blob(destination_blob_name)
     
-    # Upload the file to the blob
+    # Upload the file
     blob.upload_from_filename(source_file_name)
     
     print(f"File {source_file_name} uploaded to {destination_blob_name} in bucket {bucket_name}.")
 
 # Usage example:
-bucket_name = "your-gcs-bucket-name"
-source_file_name = "path/to/your/auditfile.txt"  # Local file you want to upload
-destination_blob_name = "folder/in/bucket/auditfile.txt"  # Path in GCS bucket
+bucket_name = "mybucket"  # Your GCS bucket name
+source_file_name = "path/to/your/auditfile.txt"  # Local file to upload
+destination_folder = "inbound"  # Folder within the GCS bucket (like gs://mybucket/inbound/)
 
-upload_file_to_gcs(bucket_name, source_file_name, destination_blob_name)
+upload_file_to_gcs(bucket_name, source_file_name, destination_folder)
