@@ -1,15 +1,8 @@
-pip install google-cloud-storage
 import os
 from google.cloud import storage
 
-def upload_file_to_gcs(bucket_name, source_file_name, destination_folder):
-    """Uploads a file to a GCS bucket, preserving the original filename."""
-    
-    # Extract the file name from the source_file_name
-    file_name = os.path.basename(source_file_name)
-    
-    # Create a full destination path by appending the file name to the destination folder
-    destination_blob_name = os.path.join(destination_folder, file_name)
+def upload_files_to_gcs(bucket_name, source_folder, file_prefix, destination_folder):
+    """Uploads all files starting with a specific prefix from a folder to a GCS bucket."""
     
     # Create a client
     storage_client = storage.Client()
@@ -17,17 +10,28 @@ def upload_file_to_gcs(bucket_name, source_file_name, destination_folder):
     # Get the bucket
     bucket = storage_client.bucket(bucket_name)
     
-    # Create a new blob in the bucket
-    blob = bucket.blob(destination_blob_name)
+    # List all files in the source folder that start with the given prefix
+    files_to_upload = [f for f in os.listdir(source_folder) if f.startswith(file_prefix)]
     
-    # Upload the file
-    blob.upload_from_filename(source_file_name)
-    
-    print(f"File {source_file_name} uploaded to {destination_blob_name} in bucket {bucket_name}.")
+    for file_name in files_to_upload:
+        # Full path of the file to upload
+        source_file_path = os.path.join(source_folder, file_name)
+        
+        # Create the destination path in GCS, preserving the original file name
+        destination_blob_name = os.path.join(destination_folder, file_name)
+        
+        # Create a blob (file) in the GCS bucket
+        blob = bucket.blob(destination_blob_name)
+        
+        # Upload the file
+        blob.upload_from_filename(source_file_path)
+        
+        print(f"File {source_file_path} uploaded to gs://{bucket_name}/{destination_blob_name}")
 
 # Usage example:
 bucket_name = "mybucket"  # Your GCS bucket name
-source_file_name = "path/to/your/auditfile.txt"  # Local file to upload
-destination_folder = "inbound"  # Folder within the GCS bucket (like gs://mybucket/inbound/)
+source_folder = "/path/to/local/folder"  # Local folder with files
+file_prefix = "abc_20241015"  # Prefix of the files to upload
+destination_folder = "inbound"  # Destination folder in GCS bucket
 
-upload_file_to_gcs(bucket_name, source_file_name, destination_folder)
+upload_files_to_gcs(bucket_name, source_folder, file_prefix, destination_folder)
