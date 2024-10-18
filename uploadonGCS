@@ -1,8 +1,8 @@
 import os
 from google.cloud import storage
 
-def upload_files_to_gcs(bucket_name, source_folder, file_prefix, destination_folder):
-    """Uploads all files starting with a specific prefix from a folder to a GCS bucket."""
+def upload_files_to_gcs(bucket_name, source_folder, prefixes, destination_folder):
+    """Uploads all files starting with any of the specified prefixes from a folder to a GCS bucket."""
     
     # Create a client
     storage_client = storage.Client()
@@ -10,8 +10,8 @@ def upload_files_to_gcs(bucket_name, source_folder, file_prefix, destination_fol
     # Get the bucket
     bucket = storage_client.bucket(bucket_name)
     
-    # List all files in the source folder that start with the given prefix
-    files_to_upload = [f for f in os.listdir(source_folder) if f.startswith(file_prefix)]
+    # List all files in the source folder that start with any of the given prefixes
+    files_to_upload = [f for f in os.listdir(source_folder) if any(f.startswith(prefix) for prefix in prefixes)]
     
     for file_name in files_to_upload:
         # Full path of the file to upload
@@ -31,7 +31,7 @@ def upload_files_to_gcs(bucket_name, source_folder, file_prefix, destination_fol
 # Usage example:
 bucket_name = "mybucket"  # Your GCS bucket name
 source_folder = "/path/to/local/folder"  # Local folder with files
-file_prefix = "abc_20241015"  # Prefix of the files to upload
+prefixes = ["abc_audit_20241015", "abc_20241015"]  # List of prefixes to match files
 destination_folder = "inbound"  # Destination folder in GCS bucket
 
-upload_files_to_gcs(bucket_name, source_folder, file_prefix, destination_folder)
+upload_files_to_gcs(bucket_name, source_folder, prefixes, destination_folder)
