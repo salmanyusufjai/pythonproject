@@ -1,0 +1,26 @@
+def generate_unmatched_column_query(table_name, columns):
+    # Generate a CASE WHEN statement for each column to check for 'unmatch'
+    case_statements = []
+    for col in columns:
+        case_statement = f"CASE WHEN COUNTIF({col} = 'unmatch') > 0 THEN '{col}' END AS unmatched_{col}"
+        case_statements.append(case_statement)
+    
+    # Combine all CASE statements into a single query
+    case_clause = ",\n    ".join(case_statements)
+    
+    # Final SQL query to detect columns with unmatched values
+    query = f"""
+    SELECT 
+        {case_clause}
+    FROM `{table_name}`
+    """
+    
+    return query
+
+# Example usage
+table_name = 'your_project.your_dataset.your_table'
+columns = ['col1', 'col2', 'col3', 'col4']  # Replace with actual column names
+
+# Generate the query dynamically
+query = generate_unmatched_column_query(table_name, columns)
+print(query)
