@@ -1,0 +1,97 @@
+def generate_dynamic_query_separate_match_unmatch(nested_table, flattened_table, another_flattened_table, field_mapping):
+    # Define the CTE for the nested table
+    nested_fields_select = []
+    for flat_field, nested_fields in field_mapping.items():
+        for nested_field in nested_fields:
+            # Remove dots for alias compatibility
+            nested_field_alias = nested_field.replace('.', '_')
+            nested_fields_select.append(f"{nested_field} AS {nested_field_alias}")
+    
+    nested_fields_select_clause = ",\n        ".join(nested_fields_select)
+    
+    # CTE for the nested table
+    nested_table_cte = f"""
+    WITH NestedTable AS (
+        SELECT
+            company AS entityKey,
+            runDate,
+            {nested_fields_select_clause}
+        FROM `{nested_table}` AS nested
+        CROSS JOIN UNNEST(nested.myccd.latest) AS latest
+    )
+    """
+    
+    # Define the CTE for the flattened table
+    flattened_table_cte = f"""
+    , FlattenedTable AS (
+        SELECT
+            companyNumber,
+            runDate,
+            clientNo,
+            accountNo,
+            field1 AS flat_field1,
+            field2 AS flat_field2
+        FROM `{flattened_table}`
+    )
+    """
+    
+    # Define the CTE for the second flattened table
+    another_flattened_table_cte = f"""
+    , AnotherFlattenedTable AS (
+        SELECT
+            clientNo,
+            accountNo,
+            additional_field1
+        FROM `{another_flattened_table}`
+    )
+    """
+    
+    # Dynamically generate the comparison logic for each mapped field
+    comparison_statements = []
+    
+    for flat_field, nested_fields in field_mapping.items():
+        for nested_field in nested_fields:
+            # Remove dots for alias compatibility
+            nested_field_alias = nested_field.replace('.', '_')
+            case_statement = f"CASE "
+            case_statement += f"WHEN n.{nested_field_alias} = f.{flat_field} THEN 'match' "
+            case_statement += f"WHEN n.{nested_field_alias} != f.{flat_field} THEN 'unmatch' "
+            case_statement += f"ELSE NULL END AS {nested_field_alias}_comparison"
+            comparison_statements.append(case_statement)
+    
+    # Combine all comparison statements into a single field
+    comparison_select_clause = ",\n    ".join(comparison_statements)
+    
+    # Final SELECT statement with joins
+    select_statement = f"""
+    SELECT
+        f.companyNumber,
+        {comparison_select_clause}
+    FROM NestedTable AS n
+    LEFT JOIN FlattenedTable AS f
+    ON n.entityKey = f.companyNumber
+    AND n.runDate = f.runDate
+    LEFT JOIN AnotherFlattenedTable AS af
+    ON f.clientNo = af.clientNo
+    AND f.accountNo = af.accountNo;
+    """
+    
+    # Combine everything into one full query
+    full_query = nested_table_cte + flattened_table_cte + another_flattened_table_cte + select_statement
+    
+    return full_query
+
+# Example usage
+nested_table = 'your_project.your_dataset.nested_table'
+flattened_table = 'your_project.your_dataset.flattened_table'
+another_flattened_table = 'your_project.your_dataset.another_flattened_table'
+
+# Field mapping: flattened fields to nested fields (rawfields and standardised fields)
+field_mapping = {
+    'flat_field1': ['latest.rawfields.field1', 'latest.standardised.stdfield1'],
+    'flat_field2': ['latest.rawfields.field2', 'latest.standardised.stdfield2']
+}
+
+# Generate the SQL query dynamically
+query = generate_dynamic_query_separate_match_unmatch(nested_table, flattened_table, another_flattened_table, field_mapping)
+print(query)
